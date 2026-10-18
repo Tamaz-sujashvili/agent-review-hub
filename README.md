@@ -4,7 +4,7 @@
 
 # Agent Review Hub — Quorum
 
-**Spend less time passing work around. Give it to the team — your AI assistants talk to each other and take it from here.**
+***
 
 **[Website](https://quorum-agent-review.lovable.app)** · **[Demo video](https://quorum-agent-review.lovable.app/#demo)** ·
 **[Download](https://github.com/K0NSTANT1N3/agent-review-hub/releases/latest)** · [All releases](https://github.com/K0NSTANT1N3/agent-review-hub/releases)
