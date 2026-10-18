@@ -141,6 +141,34 @@ describe('author assignment (§9.2)', () => {
     expect(db.tasks.require(t.id).state).toBe('QUEUED');
   });
 
+  it('explains author blockers and clears the explanation when the author becomes eligible', () => {
+    const t = task();
+    db.agents.update('alice-claude', { status: 'offline' });
+    expect(scheduler.waitReason(t)).toMatchObject({ role: 'author', blockers: [{ code: 'agent_offline', agentCount: 1 }] });
+
+    db.agents.update('alice-claude', { status: 'online', last_heartbeat_at: now, paused: 1 });
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('agent_paused');
+    db.agents.update('alice-claude', { paused: 0, rate_limited_until: now + 10_000 });
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('rate_limited');
+    db.agents.update('alice-claude', { rate_limited_until: null, max_sessions: 1 });
+    session('occupied', 'alice-claude', { profile: 'author', state: 'locked', lock_kind: 'task', lock_ref: '999', lock_role: 'author' });
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('session_capacity');
+
+    db.sessions.update('occupied', { state: 'idle', lock_kind: null, lock_ref: null, lock_role: null });
+    scheduler.schedule();
+    expect(scheduler.waitReason(db.tasks.require(t.id))).toBeNull();
+  });
+
+  it('explains starting and temporarily backed-off author sessions', () => {
+    const t = task();
+    scheduler.schedule();
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('session_starting');
+
+    const open = sent('session.open')[0]!;
+    handlers.handle('alice-claude', { type: 'session.opened', inReplyTo: open.frame.msgId, sid: open.frame.cmd.sid, ok: false, error: 'failed' });
+    expect(scheduler.waitReason(db.tasks.require(t.id))?.blockers[0]?.code).toBe('session_start_backoff');
+  });
+
   it('pool mode picks a lending agent when the requester is busy', () => {
     db.agents.update('alice-claude', { max_sessions: 1 });
     session('x', 'alice-claude', { profile: 'author', state: 'opening' });
@@ -155,6 +183,25 @@ describe('author assignment (§9.2)', () => {
 });
 
 describe('reviewer assignment (§9.3)', () => {
+  it('explains why no reviewer is eligible, including capacity, lending, idle, and budget blockers', () => {
+    const t = awaitingReview();
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('no_candidate_agent');
+
+    agent('bob-claude', { lend_mode: 'never' });
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('lending_disabled');
+
+    db.agents.update('bob-claude', { lend_mode: 'when_idle', human_idle_sec: 10 });
+    idleThreshold.set('bob-claude', 300);
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('owner_active');
+
+    db.agents.update('bob-claude', { lend_mode: 'always', human_idle_sec: null, lend_tokens_per_day: 0 });
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('budget_exhausted');
+
+    db.agents.update('bob-claude', { lend_tokens_per_day: 10_000_000, max_sessions: 1 });
+    session('bob-busy', 'bob-claude', { state: 'locked', lock_kind: 'task', lock_ref: '999', lock_role: 'author' });
+    expect(scheduler.waitReason(t)?.blockers[0]?.code).toBe('session_capacity');
+  });
+
   it('never picks the author agent; creates a conversation and sends review.start (round 1)', () => {
     agent('bob-claude');
     session('b', 'bob-claude', { profile: 'reviewer' });

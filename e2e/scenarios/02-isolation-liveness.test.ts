@@ -60,9 +60,13 @@ describe.skipIf(!E2E_READY)('isolation and liveness', () => {
     const t2 = await carol.api.createTask({ title: 'Second', description: 'x' });
     await waitForState(carol.api, t2.id, 'AWAITING_REVIEWER');
     expect((await alice.api.getTask(t1.id)).task.state).toBe('IN_REVIEW');
+    const waiting = await carol.api.getTask(t2.id);
+    expect(waiting.task.waitReason).toMatchObject({ role: 'reviewer' });
+    expect(waiting.task.waitReason?.blockers).toContainEqual(expect.objectContaining({ code: 'session_capacity', agentCount: 1 }));
 
     const d1 = await waitForState(alice.api, t1.id, 'MERGED');
     const d2 = await waitForState(carol.api, t2.id, 'MERGED');
+    expect(d2.task.waitReason).toBeNull();
     const reviewStart2 = d2.events.find((e) => e.toState === 'IN_REVIEW')!.at;
     // bob's only slot was held by task 1 until its terminal state.
     expect(reviewStart2).toBeGreaterThanOrEqual(d1.events.at(-1)!.at);

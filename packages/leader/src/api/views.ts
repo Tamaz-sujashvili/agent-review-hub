@@ -9,6 +9,7 @@ import type {
   TaskEventView,
   TaskView,
   TeamActivityView,
+  TaskWaitReason,
 } from '@quorum/protocol';
 import { budgetRemaining, lentToday } from '../core/budget.js';
 import type {
@@ -66,7 +67,7 @@ export function sessionView(s: SessionRow): SessionView {
   };
 }
 
-export function taskView(db: LeaderDb, t: TaskRow): TaskView {
+export function taskView(db: LeaderDb, t: TaskRow, waitReason: TaskWaitReason | null = null): TaskView {
   return {
     id: t.id,
     title: t.title,
@@ -79,6 +80,7 @@ export function taskView(db: LeaderDb, t: TaskRow): TaskView {
     authorAgentId: t.author_agent_id,
     authorSessionId: t.author_session_id,
     state: t.state as V<TaskView['state']>,
+    waitReason,
     pausedFromState: t.paused_from_state as V<TaskView['pausedFromState']>,
     pauseReason: t.pause_reason,
     escalationReason: t.escalation_reason,
@@ -264,9 +266,9 @@ export function teamActivity(db: LeaderDb, now: number): TeamActivityView[] {
   return rows.sort((a, b) => a.ownerName.localeCompare(b.ownerName) || a.agentId.localeCompare(b.agentId) || (a.sessionId ?? '').localeCompare(b.sessionId ?? ''));
 }
 
-export function taskDetail(db: LeaderDb, t: TaskRow): TaskDetail {
+export function taskDetail(db: LeaderDb, t: TaskRow, waitReason: TaskWaitReason | null = null): TaskDetail {
   return {
-    task: taskView(db, t),
+    task: taskView(db, t, waitReason),
     conversations: db.conversationsForTask(t.id).map(conversationView),
     issues: db.issues.find({ task_id: t.id }).map(issueView),
     events: db.taskEvents.find({ task_id: t.id }).map(taskEventView),

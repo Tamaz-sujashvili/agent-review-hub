@@ -63,6 +63,30 @@ export const SessionViewSchema = z.object({
 });
 export type SessionView = z.infer<typeof SessionViewSchema>;
 
+export const TaskWaitBlockerSchema = z.object({
+  code: z.enum([
+    'agent_offline',
+    'agent_paused',
+    'rate_limited',
+    'session_capacity',
+    'session_start_backoff',
+    'lending_disabled',
+    'owner_active',
+    'budget_exhausted',
+    'no_candidate_agent',
+    'session_starting',
+    'scheduler_pending',
+  ]),
+  agentCount: z.number().int().nonnegative(),
+});
+export type TaskWaitBlocker = z.infer<typeof TaskWaitBlockerSchema>;
+
+export const TaskWaitReasonSchema = z.object({
+  role: z.enum(['author', 'reviewer']),
+  blockers: z.array(TaskWaitBlockerSchema),
+});
+export type TaskWaitReason = z.infer<typeof TaskWaitReasonSchema>;
+
 export const TaskViewSchema = z.object({
   id: z.number().int(),
   title: z.string(),
@@ -75,6 +99,7 @@ export const TaskViewSchema = z.object({
   authorAgentId: z.string().nullable(),
   authorSessionId: z.string().nullable(),
   state: TaskStateSchema,
+  waitReason: TaskWaitReasonSchema.nullable().optional(),
   pausedFromState: TaskStateSchema.nullable(),
   pauseReason: z.string().nullable(),
   escalationReason: z.string().nullable(),

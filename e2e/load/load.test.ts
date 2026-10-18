@@ -230,6 +230,9 @@ describe('opt-in load test', () => {
 
       const stuck = snapshots(db).filter((task) => !finished(task));
       expect.soft(stuck, `tasks still unfinished at the ten-minute deadline; seed=${SEED}`).toEqual([]);
+      // ESCALATED ends the wait, but this workload has no reason to need a human decision.
+      const escalated = snapshots(db).filter((task) => task.state === 'ESCALATED');
+      expect.soft(escalated, `tasks escalated instead of merging; seed=${SEED}`).toEqual([]);
       assertLocks(db);
       const details = await Promise.all(tasks.map((task) => api.getTask(task.id)));
       expect.soft(details.flatMap((d) => d.messages.filter((m) => m.type === 'review.completed'

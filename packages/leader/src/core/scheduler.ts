@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { CmdFrame, LeaderConfig, QueueEntryView, SessionOpenedEvent, SessionProfile, TaskState } from '@quorum/protocol';
+import type { CmdFrame, LeaderConfig, QueueEntryView, SessionOpenedEvent, SessionProfile, TaskState, TaskWaitReason } from '@quorum/protocol';
 import type { AgentRow, LeaderDb, MessageRow, SessionRow, TaskRow } from '../db/repo.js';
 import { silentLogger, type Logger } from '../logging.js';
 import { budgetRemaining, dayStart, estimateAuthor, estimateReview, overlap, taskFiles } from './budget.js';
@@ -136,6 +136,69 @@ export class Scheduler {
 
   hasSlot(a: AgentRow): boolean {
     return this.usedSlots(a.id) < a.max_sessions;
+  }
+
+  /** Explains the current scheduler blocker without changing assignment policy or task state. */
+  waitReason(task: TaskRow): TaskWaitReason | null {
+    const role = task.state === 'QUEUED' ? 'author' : task.state === 'AWAITING_REVIEWER' ? 'reviewer' : null;
+    if (role === null) return null;
+    if (this.hasPendingOpen(task.id)) return { role, blockers: [{ code: 'session_starting', agentCount: 1 }] };
+
+    const requester = this.db.agents.get(task.requester_agent_id);
+    const agents = role === 'author' && task.mode === 'own'
+      ? (requester === undefined ? [] : [requester])
+      : this.db.agents.all().filter((agent) => role !== 'reviewer' || agent.id !== task.author_agent_id);
+    if (agents.length === 0) return { role, blockers: [{ code: 'no_candidate_agent', agentCount: 0 }] };
+
+    const counts = new Map<TaskWaitReason['blockers'][number]['code'], number>();
+    for (const agent of agents) {
+      const blocker = this.assignmentBlocker(agent, task, role, requester?.owner_name ?? task.requester_agent_id);
+      if (blocker === null) return { role, blockers: [{ code: 'scheduler_pending', agentCount: 0 }] };
+      counts.set(blocker, (counts.get(blocker) ?? 0) + 1);
+    }
+    return {
+      role,
+      blockers: [...counts].map(([code, agentCount]) => ({ code, agentCount }))
+        .sort((a, b) => b.agentCount - a.agentCount || a.code.localeCompare(b.code)),
+    };
+  }
+
+  private assignmentBlocker(
+    agent: AgentRow,
+    task: TaskRow,
+    role: Role,
+    requesterOwner: string,
+  ): TaskWaitReason['blockers'][number]['code'] | null {
+    if (!this.isOnline(agent)) return 'agent_offline';
+
+    const own = agent.owner_name === requesterOwner;
+    if (role === 'author' && task.mode === 'own') {
+      if (agent.paused !== 0) return 'agent_paused';
+      if (this.isRateLimited(agent)) return 'rate_limited';
+      if (!this.hasSlot(agent)) return 'session_capacity';
+      if (this.backedOff(agent.id)) return 'session_start_backoff';
+      return null;
+    }
+
+    if (this.isRateLimited(agent)) return 'rate_limited';
+    if (!this.hasSlot(agent)) return 'session_capacity';
+    if (this.backedOff(agent.id)) return 'session_start_backoff';
+
+    if (own) {
+      if (agent.paused !== 0) return 'agent_paused';
+    } else {
+      if (agent.paused !== 0) return 'agent_paused';
+      if (agent.lend_mode === 'never') return 'lending_disabled';
+      if (agent.lend_mode === 'when_idle') {
+        const threshold = this.options.idleThresholdSec?.(agent.id) ?? 300;
+        if (agent.human_idle_sec === null || agent.human_idle_sec < threshold) return 'owner_active';
+      } else if (agent.lend_mode !== 'always') {
+        return 'lending_disabled';
+      }
+      const estimate = role === 'author' ? estimateAuthor(agent, this.config.costEstimate) : estimateReview(agent, task, this.config.costEstimate);
+      if (budgetRemaining(this.db, agent, this.now(), this.config.dayBoundaryTz) < estimate) return 'budget_exhausted';
+    }
+    return null;
   }
 
   mayLend(a: AgentRow): boolean {

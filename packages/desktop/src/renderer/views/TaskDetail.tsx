@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import type { ApiRouteName, MessageView, TaskDetail as Detail, TaskEventView } from '@quorum/protocol';
 import type { AppState } from '../../shared/ipc';
 import { call, timeAgo, useLive } from '../bridge';
-import { Card, Empty, ErrorNote, STATE_LABEL, StateBadge } from '../components/common';
+import { Card, Empty, ErrorNote, STATE_LABEL, StateBadge, WaitReasonNote } from '../components/common';
 import { DiffView, type DiffRange } from '../components/DiffView';
 
 type Tab = 'timeline' | 'issues' | 'diff' | 'description';
@@ -68,6 +68,8 @@ export function TaskDetail({ id, state, onBack, initialTab }: { id: number; stat
         {t.mergedCommit !== null && <code>merged {t.mergedCommit.slice(0, 7)}</code>}
         <span className="muted">updated {timeAgo(t.updatedAt)}</span>
       </div>
+
+      <WaitReasonNote reason={t.waitReason} />
 
       {t.state === 'ESCALATED' && (
         <div className="note note-danger">

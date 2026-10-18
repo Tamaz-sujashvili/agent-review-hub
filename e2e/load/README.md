@@ -13,9 +13,9 @@ support both profiles because pool work can make a peer an author. Each mock
 turn has a seeded random delay between 50 and 500 ms. Task files are disjoint
 so merge conflicts do not obscure scheduling failures.
 
-The workload must reach MERGED or ESCALATED within ten minutes. SQLite audit
-triggers in the disposable fixture record every committed session lock change
-and task command, so lock assertions also cover activity between polls. The
+Every task must reach MERGED within ten minutes; an ESCALATED task fails the
+test. SQLite audit triggers in the disposable fixture record every committed
+session lock change and task command, so lock assertions also cover activity between polls. The
 test checks approvals against actual main-branch commits and checks for
 remaining locks before teardown. It prints progress, total workload time and
 the ten slowest tasks, including on failure.

@@ -99,7 +99,7 @@ export async function startLeader(config: LeaderConfig, options: StartLeaderOpti
     onStatusChanged: () => scheduler.trigger(),
   });
   late.hub = hub;
-  const ui = new UiHub(db, config, Date.now, () => scheduler.queueSnapshot());
+  const ui = new UiHub(db, config, (task) => scheduler.waitReason(task), Date.now, () => scheduler.queueSnapshot());
   late.ui = ui;
   hub.registerWebSocket('/ws/ui', ui.accept);
   registerRoutes(hub.server, { db, config, locks, handlers, scheduler, mergeWorker, git, logger: log });

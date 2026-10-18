@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { TaskState } from '@quorum/protocol';
+import type { TaskState, TaskWaitReason } from '@quorum/protocol';
 
 const STATE_TONE: Record<TaskState, string> = {
   QUEUED: 'muted',
@@ -33,6 +33,37 @@ export const STATE_LABEL: Record<TaskState, string> = {
 
 export function StateBadge({ state }: { state: TaskState }) {
   return <span className={`badge badge-${STATE_TONE[state]}`}>{STATE_LABEL[state]}</span>;
+}
+
+const WAIT_BLOCKERS: Record<TaskWaitReason['blockers'][number]['code'], { label: string; nextStep: string | null }> = {
+  agent_offline: { label: 'offline', nextStep: 'Ask a teammate to reconnect or wait for them.' },
+  agent_paused: { label: 'paused', nextStep: 'Resume the agent or choose another available agent.' },
+  rate_limited: { label: 'rate-limited', nextStep: 'Wait for the usage limit to reset.' },
+  session_capacity: { label: 'at session capacity', nextStep: 'Wait for a session to become free.' },
+  session_start_backoff: { label: 'retrying after a session start failure', nextStep: 'The Leader will retry automatically.' },
+  lending_disabled: { label: 'not accepting teammate work', nextStep: 'Ask a teammate to enable lending, or wait for another agent.' },
+  owner_active: { label: 'owner is active', nextStep: 'Wait until the owner is idle or ask them to change their lending mode.' },
+  budget_exhausted: { label: 'daily teammate-work budget is exhausted', nextStep: 'Wait for the budget to reset or adjust the agent budget.' },
+  no_candidate_agent: { label: 'no other eligible agent is connected', nextStep: 'Invite another teammate or wait for one to connect.' },
+  session_starting: { label: 'starting an agent session', nextStep: null },
+  scheduler_pending: { label: 'checking agent availability', nextStep: null },
+};
+
+export function WaitReasonNote({ reason, compact = false }: { reason: TaskWaitReason | null | undefined; compact?: boolean }) {
+  if (reason === null || reason === undefined) return null;
+  const heading = reason.role === 'author' ? 'Waiting for an author' : 'Waiting for a reviewer';
+  const blockers = reason.blockers.map(({ code, agentCount }) => {
+    const label = WAIT_BLOCKERS[code].label;
+    if (code === 'session_starting' || code === 'scheduler_pending' || code === 'no_candidate_agent') return label;
+    return `${agentCount} agent${agentCount === 1 ? '' : 's'} ${label}`;
+  });
+  const nextStep = reason.blockers.map(({ code }) => WAIT_BLOCKERS[code].nextStep).find((step) => step !== null) ?? null;
+  return (
+    <div className={compact ? 'wait-reason wait-reason-compact' : 'note note-warn wait-reason'}>
+      <strong>{heading}:</strong> {blockers.join('; ')}.
+      {!compact && nextStep !== null && <div className="wait-next">Next: {nextStep}</div>}
+    </div>
+  );
 }
 
 export function Dot({ tone, title }: { tone: 'ok' | 'warn' | 'danger' | 'info' | 'muted'; title?: string }) {

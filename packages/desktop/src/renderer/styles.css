@@ -83,6 +83,9 @@ blockquote { margin: 6px 0 0; padding: 6px 10px; border-left: 3px solid var(--bo
 .note-danger { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .note-ok { border-color: var(--ok); color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
 .note-warn { border-color: var(--warn); color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.wait-reason { line-height: 1.4; }
+.wait-reason-compact { color: var(--warn); font-size: 12px; line-height: 1.35; }
+.wait-next { margin-top: 4px; font-size: 12px; color: var(--muted); }
 .empty { color: var(--muted); padding: 18px; text-align: center; }
 
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--panel-2); border: 1px solid var(--border); white-space: nowrap; }

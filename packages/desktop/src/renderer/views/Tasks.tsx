@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { TaskState, TaskView } from '@quorum/protocol';
 import { call, timeAgo, useLive } from '../bridge';
-import { Empty, ErrorNote, StateBadge } from '../components/common';
+import { Empty, ErrorNote, StateBadge, WaitReasonNote } from '../components/common';
 
 const COLUMNS: { title: string; states: TaskState[] }[] = [
   { title: 'Queued', states: ['QUEUED'] },
@@ -61,6 +61,7 @@ function TaskCard({ task, onOpen }: { task: TaskView; onOpen: (id: number) => vo
       <div className="muted small">
         {task.requesterOwner} · round {task.reviewRound} · {timeAgo(task.updatedAt)}
       </div>
+      <WaitReasonNote reason={task.waitReason} compact />
       {task.escalationReason !== null && <div className="small danger-text">{task.escalationReason}</div>}
     </button>
   );
