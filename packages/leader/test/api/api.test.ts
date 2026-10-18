@@ -229,6 +229,21 @@ describe('REST API (§17)', () => {
     expect(body.queue).toEqual([expect.objectContaining({ taskId: escalated.id, position: null, needs: 'human', requesterOwner: 'bob', reason: 'Issues disputed twice' })]);
   });
 
+  it('marks only human pauses as waiting on a human', async () => {
+    const now = Date.now();
+    // Rate-limited, so the running scheduler does not resume alice's task before we read it.
+    side.agents.update('alice-claude', { status: 'online', last_heartbeat_at: now, rate_limited_until: now + 600_000 });
+    side.agents.update('bob-claude', { status: 'online', last_heartbeat_at: now });
+    for (const [owner, reason] of [['alice', 'rate_limited'], ['bob', 'human']] as const) {
+      const agentId = `${owner}-claude`;
+      const task = side.tasks.insert({ title: `Paused ${reason}`, description: 'd', requester_agent_id: agentId, state: 'PAUSED', pause_reason: reason, paused_from_state: 'AUTHORING', author_agent_id: agentId, created_at: now, updated_at: now, state_entered_at: now });
+      side.sessions.insert({ id: `${owner}-session`, agent_id: agentId, state: 'locked', lock_kind: 'task', lock_ref: String(task.id), lock_role: 'author', created_at: now, last_used_at: now });
+    }
+    const activities = (await api('GET', '/api/activity', 'alice')).body!.activities as { sessionId: string | null; waitingOn: string | null; waitingReason: string | null; waitingForName: string | null }[];
+    expect(activities.find((item) => item.sessionId === 'alice-session')).toMatchObject({ waitingOn: 'scheduler', waitingReason: 'Paused: rate limited', waitingForName: null });
+    expect(activities.find((item) => item.sessionId === 'bob-session')).toMatchObject({ waitingOn: 'human', waitingReason: 'Paused by a human', waitingForName: 'bob' });
+  });
+
   it('pushes team activity changes over /ws/ui', async () => {
     const ws = new WebSocket(`ws://127.0.0.1:${leader.port}/ws/ui?token=${tokens.alice}`);
     await new Promise((r) => ws.once('open', r));

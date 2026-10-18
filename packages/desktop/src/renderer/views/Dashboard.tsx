@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { QueueEntryView } from '@quorum/protocol';
+import type { QueueEntryView, TeamActivityView } from '@quorum/protocol';
 import type { AppState } from '../../shared/ipc';
 import { bridge, call, formatTokens, timeAgo, useLive } from '../bridge';
 import { Bar, Card, Dot, Empty, ErrorNote } from '../components/common';
@@ -30,7 +30,11 @@ export function Dashboard({ state, onOpenTask }: { state: AppState; onOpenTask: 
 
   const open = (tasks.data?.tasks ?? []).filter((t) => !['MERGED', 'CANCELLED', 'FAILED'].includes(t.state));
   const attention = open.filter((t) => t.state === 'ESCALATED' || t.state === 'PAUSED');
-  const activities = activity.data?.activities ?? [];
+  // Older Leaders omit waitingForName and rateLimitedUntil; the renderer does not parse responses, so default them here.
+  const activities = (activity.data?.activities ?? []).map((a) => {
+    const loose = a as Partial<TeamActivityView>;
+    return { ...a, waitingForName: loose.waitingForName ?? null, rateLimitedUntil: loose.rateLimitedUntil ?? null };
+  });
   // Leaders older than the queue view send no `queue`.
   const queue: QueueEntryView[] = (activity.data?.queue as QueueEntryView[] | undefined) ?? [];
 

@@ -221,7 +221,9 @@ export function teamActivity(db: LeaderDb, now: number): TeamActivityView[] {
         activityState = directive?.state === 'running' ? 'working' : 'waiting';
         if (activityState === 'waiting') { waitingOn = 'scheduler'; waitingReason = 'Directive is queued'; }
       } else if (task !== undefined) {
-        if (task.state === 'PAUSED') { activityState = 'paused'; waitingOn = 'human'; waitingReason = task.pause_reason ?? 'Task paused'; }
+        if (task.state === 'PAUSED' && task.pause_reason === 'human') { activityState = 'paused'; waitingOn = 'human'; waitingReason = 'Paused by a human'; }
+        // Other pauses (rate limit, lost author, …) resume on their own; the queue explains on what.
+        else if (task.state === 'PAUSED') { activityState = 'paused'; waitingOn = 'scheduler'; waitingReason = `Paused: ${(task.pause_reason ?? 'unknown').replaceAll('_', ' ')}`; }
         else if (task.state === 'ESCALATED') { activityState = 'waiting'; waitingOn = 'human'; waitingReason = 'Needs a human decision'; }
         else if ((task.state === 'AUTHORING' || task.state === 'SYNCING') && role === 'author') activityState = 'working';
         else if (task.state === 'IN_REVIEW' && role === 'reviewer') activityState = 'working';

@@ -807,12 +807,14 @@ export class Scheduler {
     if (!this.hasSlot(a)) return `busy (${this.usedSlots(a.id)}/${a.max_sessions} sessions)`;
     if (this.backedOff(a.id)) return 'failed to open a session; retrying soon';
     if (a.paused !== 0) return 'paused';
+    if (!own) {
+      if (a.lend_mode === 'never') return 'does not lend';
+      if (!this.mayLend(a)) return 'in use by its owner (lends when idle)';
+      const estimate = role === 'author' ? estimateAuthor(a, this.config.costEstimate) : estimateReview(a, task, this.config.costEstimate);
+      if (budgetRemaining(this.db, a, this.now(), this.config.dayBoundaryTz) < estimate) return 'out of lending budget';
+    }
+    // Last, as in assignAuthor: the review-capacity check is the expensive one.
     if (role === 'author' && !this.canAdmitAuthor(task, a.id)) return 'reserving capacity for reviews';
-    if (own) return null;
-    if (a.lend_mode === 'never') return 'does not lend';
-    if (!this.mayLend(a)) return 'in use by its owner (lends when idle)';
-    const estimate = role === 'author' ? estimateAuthor(a, this.config.costEstimate) : estimateReview(a, task, this.config.costEstimate);
-    if (budgetRemaining(this.db, a, this.now(), this.config.dayBoundaryTz) < estimate) return 'out of lending budget';
     return null;
   }
 

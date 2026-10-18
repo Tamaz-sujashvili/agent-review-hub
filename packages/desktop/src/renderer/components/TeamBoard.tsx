@@ -88,7 +88,7 @@ function agentTiles(agents: AgentView[] | undefined, activities: TeamActivityVie
       };
       tiles.set(row.agentId, tile);
     }
-    if (row.role !== 'idle') tile.rows.push(row);
+    if (row.role !== 'idle' || row.sessionState === 'opening') tile.rows.push(row);
   }
   return [...tiles.values()].sort((a, b) => a.ownerName.localeCompare(b.ownerName) || a.agentId.localeCompare(b.agentId));
 }
@@ -115,6 +115,7 @@ function tileTone(tile: AgentTile): Tone {
 }
 
 function SessionLine({ row, onOpen }: { row: TeamActivityView; onOpen: (id: number) => void }) {
+  if (row.role === 'idle') return <div className="agent-line muted">Starting a session…</div>;
   const verb = row.role === 'author' ? 'Writing' : row.role === 'reviewer' ? 'Reviewing' : 'Answering';
   const waiting = row.activityState === 'waiting' || row.activityState === 'paused';
   const partner = row.role === 'reviewer' && row.pairedOwnerName !== null ? `for ${row.pairedOwnerName}` : null;

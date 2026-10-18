@@ -17,6 +17,7 @@ export class UiHub {
   private readonly agentHashes = new Map<string, string>();
   private readonly directiveHashes = new Map<string, string>();
   private activityHash = '';
+  private queueCache: { at: number; queue: QueueEntryView[] } | undefined;
 
   constructor(
     private readonly db: LeaderDb,
@@ -98,7 +99,11 @@ export class UiHub {
   }
 
   private activity(): TeamActivityResponse {
-    return { activities: teamActivity(this.db, this.now()), queue: this.queue() };
+    // The queue explanation is costlier than the activity rows and only changes when the scheduler runs, so refresh it
+    // at the scheduler's tick rate instead of on every 500 ms poll.
+    const now = this.now();
+    if (this.queueCache === undefined || now - this.queueCache.at >= this.config.scheduler.tickMs) this.queueCache = { at: now, queue: this.queue() };
+    return { activities: teamActivity(this.db, now), queue: this.queueCache.queue };
   }
 
   private broadcast(event: UiEvent): void {
